@@ -65,6 +65,7 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint --fix .",
     "gate": "npm run lint && npm test && npm run package",
+    "release:check": "node scripts/check-release.js",
     "package": "vsce package"
   },
   "dependencies": {

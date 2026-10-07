@@ -4,7 +4,7 @@ const globals = require('globals');
 module.exports = [
   js.configs.recommended,
   {
-    files: ['src/**/*.js', 'test/**/*.js', 'eslint.config.js'],
+    files: ['src/**/*.js', 'test/**/*.js', 'scripts/**/*.js', 'eslint.config.js'],
     languageOptions: { sourceType: 'commonjs', globals: globals.node },
   },
   {

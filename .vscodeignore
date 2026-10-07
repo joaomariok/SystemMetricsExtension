@@ -6,3 +6,5 @@ eslint.config.js
 .prettierrc.json
 .prettierignore
 .gitignore
+scripts/**
+.claude/**
