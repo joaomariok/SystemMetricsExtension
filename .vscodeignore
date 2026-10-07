@@ -1,0 +1,7 @@
+docs/**
+test/**
+.vscode/**
+*.vsix
+eslint.config.js
+.prettierrc.json
+.prettierignore

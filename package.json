@@ -1,0 +1,63 @@
+{
+  "name": "system-metrics",
+  "displayName": "System Metrics",
+  "description": "Task Manager-style CPU, memory, GPU, disk and network graphs in the sidebar.",
+  "version": "0.1.0",
+  "publisher": "joaomag",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "system-metrics",
+          "title": "System Metrics",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "system-metrics": [
+        {
+          "type": "webview",
+          "id": "system-metrics.view",
+          "name": "System Metrics",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "System Metrics",
+      "properties": {
+        "systemMetrics.showCores": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show a usage bar for each CPU core."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write . && eslint --fix .",
+    "gate": "npm run lint && npm test && npm run package",
+    "package": "vsce package --allow-missing-repository --skip-license"
+  },
+  "dependencies": {
+    "systeminformation": "^5.33.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vscode/vsce": "^4.0.0",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9"
+  }
+}
