@@ -5,3 +5,4 @@ test/**
 eslint.config.js
 .prettierrc.json
 .prettierignore
+.gitignore

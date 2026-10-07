@@ -3,12 +3,29 @@
   "displayName": "System Metrics",
   "description": "Task Manager-style CPU, memory, GPU, disk and network graphs in the sidebar.",
   "version": "0.1.0",
-  "publisher": "joaomag",
+  "publisher": "joaomariok",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joaomariok/SystemMetricsExtension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joaomariok/SystemMetricsExtension/issues"
+  },
+  "homepage": "https://github.com/joaomariok/SystemMetricsExtension#readme",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Other"
+    "Visualization"
+  ],
+  "keywords": [
+    "cpu",
+    "gpu",
+    "memory",
+    "task manager",
+    "system monitor"
   ],
   "main": "./src/extension.js",
   "activationEvents": [],
@@ -48,7 +65,7 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint --fix .",
     "gate": "npm run lint && npm test && npm run package",
-    "package": "vsce package --allow-missing-repository --skip-license"
+    "package": "vsce package"
   },
   "dependencies": {
     "systeminformation": "^5.33.15"
