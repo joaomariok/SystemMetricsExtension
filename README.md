@@ -4,6 +4,8 @@ Live system metrics in the VS Code sidebar, styled like the Windows Task Manager
 
 Click the gauge icon in the activity bar to open the **System Metrics** view.
 
+![System Metrics view showing CPU, memory, two GPUs, disk and network graphs](images/screenshot.png)
+
 ## What it shows
 
 | Section                                | Shown as                                            | Updates                                       |

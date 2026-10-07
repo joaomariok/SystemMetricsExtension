@@ -8,3 +8,4 @@ eslint.config.js
 .gitignore
 scripts/**
 .claude/**
+images/screenshot.png
