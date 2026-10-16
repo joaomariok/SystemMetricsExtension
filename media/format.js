@@ -30,7 +30,22 @@
     return `${d ? `${d}d ` : ''}${pad(h)}:${pad(m)}:${pad(sec % 60)}`;
   }
 
-  const api = { bytes, rate, pct, uptime };
+  function temp(c) {
+    return c == null ? null : `${Math.round(c)} °C`;
+  }
+
+  // Temperature of the disk holding a drive letter; the hottest one for a spanned volume.
+  function driveTemp(mount, diskTemps) {
+    const key = String(mount).toUpperCase();
+    let best = null;
+    for (const d of diskTemps || []) {
+      if (d.tempC == null || !(d.mounts || []).some((m) => m.toUpperCase() === key)) continue;
+      if (!best || d.tempC > best.tempC) best = d;
+    }
+    return best && `${temp(best.tempC)}${best.idle ? ' (idle)' : ''}`;
+  }
+
+  const api = { bytes, rate, pct, uptime, temp, driveTemp };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.fmt = api;
 })(this);

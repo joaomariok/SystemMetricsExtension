@@ -21,9 +21,11 @@
   function section(title, parent = root) {
     const box = el('section', 'section', parent);
     const head = el('div', 'head', box);
-    el('span', 'title', head, title);
+    const name = el('span', 'name', head);
+    el('span', 'title', name, title);
+    const temp = el('span', 'temp', name);
     const value = el('span', 'value', head, 'N/A');
-    return { box, value };
+    return { box, value, temp };
   }
 
   function cssVar([name, fallback]) {
@@ -100,10 +102,12 @@
   function bar(parent, label) {
     const row = el('div', 'bar-row', parent);
     const text = el('div', 'bar-label', row);
-    el('span', null, text, label);
+    const name = el('span', 'name', text);
+    el('span', 'title', name, label);
+    const temp = el('span', 'temp', name);
     const value = el('span', null, text, 'N/A');
     const fill = el('div', 'fill', el('div', 'bar', row));
-    return { value, fill };
+    return { value, fill, temp };
   }
 
   function setBar(b, used, total, text) {
@@ -111,7 +115,16 @@
     b.value.textContent = text;
   }
 
+  // Temperature sits after the name, so the main value keeps the right edge.
+  const showTemp = (target, text) => (target.temp.textContent = text ? ` · ${text}` : '');
+
   const usedOf = (part) => (part ? `${fmt.bytes(part.used)} / ${fmt.bytes(part.total)}` : 'N/A');
+
+  function info(label, parent) {
+    const row = el('div', 'info', parent);
+    el('span', null, row, label);
+    return el('span', 'value', row, 'N/A');
+  }
 
   // Layout, top to bottom.
   const cpu = section('CPU');
@@ -132,19 +145,16 @@
   const drivesBox = el('div', null, disk.box);
   let drivesKey = null;
   let driveBars = [];
+  let drives = [];
+  let diskTemps = null;
 
   const net = section('Network');
   const netGraph = graph(net.box, [ORANGE, BLUE], null);
 
   const footer = el('section', 'section footer', root);
-  function info(label) {
-    const row = el('div', 'info', footer);
-    el('span', null, row, label);
-    return el('span', 'value', row, 'N/A');
-  }
-  const battery = info('Battery');
-  const temp = info('Temperature');
-  const uptime = info('Uptime');
+  const battery = info('Battery', footer);
+  const temp = info('CPU temperature', footer);
+  const uptime = info('Uptime', footer);
 
   function renderCpu({ total, cores }) {
     cpu.value.textContent = fmt.pct(total);
@@ -181,6 +191,7 @@
     (list || []).forEach((g, i) => {
       const v = gpuViews[i];
       v.s.value.textContent = fmt.pct(g.util);
+      showTemp(v.s, fmt.temp(g.tempC));
       push(v.graph, [g.util]);
       setBar(v.dedicated, g.dedicated?.used, g.dedicated?.total, usedOf(g.dedicated));
       setBar(v.shared, g.shared?.used, g.shared?.total, usedOf(g.shared));
@@ -192,14 +203,19 @@
     push(diskGraph, [active]);
   }
 
-  function renderDrives(list) {
-    const key = list.map((d) => d.mount).join('|');
+  // Drive space (every 10s) and disk temperatures (every second on Windows) arrive
+  // separately; each re-renders the bars with the latest of both.
+  function renderDrives() {
+    const key = drives.map((d) => d.mount).join('|');
     if (key !== drivesKey) {
       drivesKey = key;
       drivesBox.replaceChildren();
-      driveBars = list.map((d) => bar(drivesBox, d.mount));
+      driveBars = drives.map((d) => bar(drivesBox, d.mount));
     }
-    list.forEach((d, i) => setBar(driveBars[i], d.used, d.size, `${fmt.bytes(d.used)} / ${fmt.bytes(d.size)}`));
+    drives.forEach((d, i) => {
+      setBar(driveBars[i], d.used, d.size, `${fmt.bytes(d.used)} / ${fmt.bytes(d.size)}`);
+      showTemp(driveBars[i], fmt.driveTemp(d.mount, diskTemps));
+    });
   }
 
   function renderNet({ rxSec, txSec }) {
@@ -213,7 +229,9 @@
     if (m.mem) renderMem(m.mem);
     if ('gpu' in m) renderGpu(m.gpu);
     if (m.disk) renderDisk(m.disk);
-    if (m.disks) renderDrives(m.disks);
+    if (m.disks) drives = m.disks;
+    if ('diskTemps' in m) diskTemps = m.diskTemps;
+    if (m.disks || 'diskTemps' in m) renderDrives();
     if (m.net) renderNet(m.net);
     if ('battery' in m) {
       battery.textContent = m.battery ? `${m.battery.percent}%${m.battery.charging ? ' (charging)' : ''}` : 'N/A';

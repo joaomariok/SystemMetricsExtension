@@ -2,7 +2,7 @@
   "name": "system-metrics",
   "displayName": "System Metrics",
   "description": "Task Manager-style CPU, memory, GPU, disk and network graphs in the sidebar.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "joaomariok",
   "license": "MIT",
   "icon": "images/icon.png",

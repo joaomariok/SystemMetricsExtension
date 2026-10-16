@@ -21,6 +21,8 @@ Linux; Windows gets the richest data.
 | Disk activity % | graph | 1s | counter loop | `si.disksIO()` → N/A when unsupported |
 | Disk space per drive | bars | 10s | `si.fsSize()` | `si.fsSize()` |
 | Battery | value | 10s | `si.battery()` (`null` when no battery) | same |
+| GPU temperature, per adapter | value | 1s (10s on macOS/Linux) | counter loop (D3DKMT perf data) | `si.graphics()` `temperatureGpu` (NVIDIA) |
+| Disk temperature, per physical disk | value | 10s | counter loop (storage temperature property) | not shown |
 | CPU temperature | value | 10s | always `null` (N/A) | `si.cpuTemperature()` |
 | Uptime | value | 10s | `os.uptime()` | same |
 
@@ -28,6 +30,42 @@ Linux; Windows gets the richest data.
 
 CPU temperature is deliberately N/A on Windows: the only unprivileged source
 (ACPI thermal zones) reported 28°C/17°C on the dev machine — not CPU temps.
+
+GPU and disk temperatures are read without admin by the counter loop:
+`D3DKMTQueryAdapterInfo(KMTQAITYPE_ADAPTERPERFDATA)` per adapter LUID
+(`Temperature`, deci-°C; the Task Manager source; 0 on adapters without a
+sensor, e.g. Intel UHD 770) and `IOCTL_STORAGE_QUERY_PROPERTY` with
+`StorageDeviceTemperatureProperty` on `\\.\PhysicalDriveN` opened with access 0
+(USB sticks reject it). Probed on the dev machine: RTX 3060 42.8°C (nvidia-smi
+43), SATA HDD 37°C, NVMe 40°C.
+
+The temperature query is a command sent to the drive, so asking an HDD every
+10s would likely reset its idle timer and keep it from spinning down (not
+measured). The C# helper (`src/temps.cs`, loaded with `Add-Type -Path`)
+therefore decides per drive with `Temps.ShouldQuery`: at most every 10 ticks;
+drives without a seek penalty (SSD/NVMe) always; spinning drives, and drives
+whose seek penalty is unknown (USB sticks), only while `GetDevicePowerState`
+says on and `\PhysicalDisk(N ...)\Disk Transfers/sec` showed real I/O in the
+last sample. When that counter is unavailable (non-English Windows, or a failed
+sample) spinning drives are not asked at all. `Temps.Record` keeps per-drive
+state: every drive is listed (`c: 0` = no reading, shown as N/A); a drive that
+never answers is marked unsupported and not asked again; a failed query after
+earlier readings keeps the last value and retries when due; a spinning drive
+that was due but skipped is listed with `idle: true`. Not covered: a drive whose
+own firmware enters standby without Windows knowing still reports on, and
+`Temps.Transfers` maps counter instances to drive numbers for drives 0–31 only.
+
+Temperatures are shown inline so the view does not grow: a GPU's next to its
+utilization in the section header, a disk's next to each drive letter's space
+bar. `Temps.Disks` maps letters to disks with
+`IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS` on `\\.\C:` (access 0, no admin), refreshed
+every 10 ticks; a volume spanning disks shows its hottest disk. Disks without a
+drive letter are not shown.
+
+Open question: the GPU temperature query runs every second on every adapter. On
+hybrid laptops (NVIDIA Optimus, AMD switchable graphics) it may keep the
+discrete GPU from powering down; untested, since the dev machine is a desktop.
+Task Manager queries the same data the same way while it is open.
 
 On macOS/Linux the 1s tier calls `si.networkStats()` and `si.disksIO()`;
 `si.graphics()` is slow, so GPU is in the 10s tier there.
@@ -88,8 +126,10 @@ Partial updates; only present fields change. `null` means N/A.
   gpu: [ { name: 'NVIDIA GeForce RTX 3060',
            util: 4.2,                                 // %
            dedicated: { used: 10.2e9, total: 12.7e9 } | null,   // bytes
-           shared: { used: 1.3e9, total: 17.0e9 } | null } ],   // bytes
-  disk: { active: 10.6 } }                            // %
+           shared: { used: 1.3e9, total: 17.0e9 } | null,       // bytes
+           tempC: 42.8 | null } ],                    // °C
+  disk: { active: 10.6 },                             // %
+  diskTemps: [ { index: 1, name: 'WDC WDS480G2G0C-00AJM0', tempC: 40 | null, idle: false, mounts: ['C:'] } ] | null }  // Windows only
 // slow, every 10s
 { disks: [ { mount: 'C:', used: 390e9, size: 478e9 } ],
   battery: { percent: 80, charging: true } | null,

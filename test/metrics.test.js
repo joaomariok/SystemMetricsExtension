@@ -24,7 +24,7 @@ function fakeSi(over = {}) {
     cpuTemperature: async () => ({ main: 54 }),
     graphics: async () => ({
       controllers: [
-        { model: 'NVIDIA X', utilizationGpu: 4, memoryUsed: 1024, memoryTotal: 12288 },
+        { model: 'NVIDIA X', utilizationGpu: 4, memoryUsed: 1024, memoryTotal: 12288, temperatureGpu: 51 },
         { model: 'Intel Y', vram: 128 },
       ],
     }),
@@ -72,8 +72,8 @@ test('slow elsewhere adds temperature and gpu from systeminformation', async () 
   const snap = await slow(fakeSi(), { windows: false });
   assert.equal(snap.tempC, 54);
   assert.deepEqual(snap.gpu, [
-    { name: 'NVIDIA X', util: 4, dedicated: { used: 1024 * MB, total: 12288 * MB }, shared: null },
-    { name: 'Intel Y', util: null, dedicated: null, shared: null },
+    { name: 'NVIDIA X', util: 4, dedicated: { used: 1024 * MB, total: 12288 * MB }, shared: null, tempC: 51 },
+    { name: 'Intel Y', util: null, dedicated: null, shared: null, tempC: null },
   ]);
 });
 

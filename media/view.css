@@ -18,7 +18,13 @@ body {
   margin-bottom: 4px;
 }
 
+.name {
+  display: flex;
+  min-width: 0;
+}
+
 .title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -29,6 +35,14 @@ body {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.temp {
+  flex-shrink: 0;
+  font-weight: normal;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
 }
 
 .graph {

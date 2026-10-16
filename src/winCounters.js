@@ -4,11 +4,14 @@ const childProcess = require('child_process');
 const SCRIPT_PATH = path.join(__dirname, 'counters.ps1');
 
 const LUID_RE = /luid_0x[0-9a-f]{8}_0x[0-9a-f]{8}/;
-const EMPTY = { gpu: null, disk: { active: null }, net: { rxSec: null, txSec: null } };
+const EMPTY = { gpu: null, disk: { active: null }, net: { rxSec: null, txSec: null }, diskTemps: null };
 
 const clamp = (v) => Math.min(100, Math.max(0, v));
+// The script reports 0 or nothing when a device has no sensor.
+const celsius = (v) => (typeof v === 'number' && v > 0 ? v : null);
 
-function toSnapshot(samples, adapters) {
+// temps: {gpu: {<luid>: celsius}, disks: [{index, name, c, idle, mounts}]} from counters.ps1, or undefined.
+function toSnapshot(samples, adapters, temps) {
   const known = new Map(adapters.map((a) => [a.luid.toLowerCase(), a]));
   const gpus = new Map();
   const entry = (luid) => {
@@ -32,6 +35,7 @@ function toSnapshot(samples, adapters) {
     else if (key.endsWith('\\bytes sent/sec')) tx = (tx ?? 0) + v;
   }
 
+  const gpuTemps = new Map(Object.entries(temps?.gpu || {}).map(([luid, c]) => [luid.toLowerCase(), c]));
   const gpu = [...gpus].map(([luid, g], i) => {
     const a = known.get(luid);
     return {
@@ -39,6 +43,7 @@ function toSnapshot(samples, adapters) {
       util: Math.min(100, g.util),
       dedicated: g.dedicated == null ? null : { used: g.dedicated, total: a ? a.dedicatedTotal : null },
       shared: g.shared == null ? null : { used: g.shared, total: a ? a.sharedTotal : null },
+      tempC: celsius(gpuTemps.get(luid)),
     };
   });
 
@@ -46,6 +51,15 @@ function toSnapshot(samples, adapters) {
     gpu,
     disk: { active: idle == null ? null : clamp(100 - idle) },
     net: { rxSec: rx, txSec: tx },
+    diskTemps: Array.isArray(temps?.disks)
+      ? temps.disks.map((d) => ({
+          index: d.index,
+          name: d.name,
+          tempC: celsius(d.c),
+          idle: d.idle === true,
+          mounts: Array.isArray(d.mounts) ? d.mounts : [],
+        }))
+      : null,
   };
 }
 
@@ -62,7 +76,7 @@ function createParser() {
       adapters = msg.adapters;
       return null;
     }
-    if (Array.isArray(msg?.samples)) return toSnapshot(msg.samples, adapters);
+    if (Array.isArray(msg?.samples)) return toSnapshot(msg.samples, adapters, msg.temps);
     return null;
   };
 }

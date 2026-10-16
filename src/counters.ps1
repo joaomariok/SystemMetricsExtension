@@ -1,6 +1,6 @@
 # Streams JSON lines to stdout for src/winCounters.js:
 #   1. once:  {"adapters":[{luid,name,software,dedicatedTotal,sharedTotal}]}
-#   2. ~1/s:  {"samples":[{p,v}]}
+#   2. ~1/s:  {"samples":[{p,v}],"temps":{"gpu":{luid:celsius},"disks":[{index,name,c,idle,mounts}]}}
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 
 function Emit($obj) {
@@ -70,22 +70,45 @@ public static class Dxgi {
 } catch {}
 Emit @{ adapters = $adapters }
 
+# GPU and disk temperatures, readable without admin (see temps.cs).
+$hasTemps = $false
+try {
+  Add-Type -Path (Join-Path $PSScriptRoot 'temps.cs')
+  $hasTemps = $true
+} catch {}
+$gpuLuids = @($adapters | Where-Object { -not $_.software } | ForEach-Object { $_.luid })
+$diskTemps = @()
+$tick = 0
+
 $paths = @(
   '\GPU Engine(*engtype_3D)\Utilization Percentage',
   '\GPU Adapter Memory(*)\Dedicated Usage',
   '\GPU Adapter Memory(*)\Shared Usage',
   '\PhysicalDisk(_Total)\% Idle Time',
+  '\PhysicalDisk(*)\Disk Transfers/sec',
   '\Network Interface(*)\Bytes Received/sec',
   '\Network Interface(*)\Bytes Sent/sec'
 )
 
 while ($true) {
-  $samples = @()
+  $raw = @()
   try {
     # Get-Counter waits one 1s sample interval, which paces the loop.
-    $samples = @((Get-Counter -Counter $paths -ErrorAction SilentlyContinue).CounterSamples |
-      ForEach-Object { @{ p = $_.Path; v = $_.CookedValue } })
+    $raw = @((Get-Counter -Counter $paths -ErrorAction SilentlyContinue).CounterSamples)
   } catch {}
-  Emit @{ samples = $samples }
+  $samples = @($raw | ForEach-Object { @{ p = $_.Path; v = $_.CookedValue } })
+  $gpuTemps = @{}
+  if ($hasTemps) {
+    foreach ($luid in $gpuLuids) { try { $gpuTemps[$luid] = [Temps]::Gpu($luid) } catch {} }
+    $perDisk = @($raw | Where-Object { $_.Path -like '*\disk transfers/sec' })
+    try {
+      $transfers = [Temps]::Transfers([string[]]@($perDisk | ForEach-Object { $_.InstanceName }),
+        [double[]]@($perDisk | ForEach-Object { $_.CookedValue }))
+      $diskTemps = @([Temps]::Disks($tick, $transfers) |
+        ForEach-Object { @{ index = $_.Index; name = $_.Name; c = $_.C; idle = $_.Idle; mounts = @($_.Mounts) } })
+    } catch {}
+  }
+  $tick++
+  Emit @{ samples = $samples; temps = @{ gpu = $gpuTemps; disks = $diskTemps } }
   if ($samples.Count -eq 0) { Start-Sleep -Seconds 1 }
 }

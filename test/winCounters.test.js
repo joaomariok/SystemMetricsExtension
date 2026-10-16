@@ -38,12 +38,14 @@ test('toSnapshot groups GPUs by LUID, caps utilization, drops software adapters'
       util: 100,
       dedicated: { used: 10e9, total: 12e9 },
       shared: { used: 1e9, total: 17e9 },
+      tempC: null,
     },
     {
       name: 'Intel(R) UHD Graphics 770',
       util: 2.5,
       dedicated: { used: 0, total: 128e6 },
       shared: { used: 142e6, total: 17e9 },
+      tempC: null,
     },
   ]);
 });
@@ -67,17 +69,62 @@ test('toSnapshot labels LUIDs unknown to DXGI as GPU n with null totals', () => 
     ],
     [],
   );
-  assert.deepEqual(snap.gpu, [{ name: 'GPU 0', util: 10, dedicated: { used: 5e9, total: null }, shared: null }]);
+  assert.deepEqual(snap.gpu, [
+    { name: 'GPU 0', util: 10, dedicated: { used: 5e9, total: null }, shared: null, tempC: null },
+  ]);
 });
 
 test('toSnapshot lists idle adapters and reports missing counters as null', () => {
   const snap = toSnapshot([], ADAPTERS);
   assert.deepEqual(snap.gpu, [
-    { name: 'NVIDIA GeForce RTX 3060', util: 0, dedicated: null, shared: null },
-    { name: 'Intel(R) UHD Graphics 770', util: 0, dedicated: null, shared: null },
+    { name: 'NVIDIA GeForce RTX 3060', util: 0, dedicated: null, shared: null, tempC: null },
+    { name: 'Intel(R) UHD Graphics 770', util: 0, dedicated: null, shared: null, tempC: null },
   ]);
   assert.deepEqual(snap.disk, { active: null });
   assert.deepEqual(snap.net, { rxSec: null, txSec: null });
+  assert.equal(snap.diskTemps, null);
+});
+
+const TEMPS = {
+  gpu: { [NV.toUpperCase()]: 42.8, [IG]: null, [SW]: 30 },
+  disks: [
+    { index: 0, name: 'ST2000DM008', c: 37, idle: true, mounts: ['D:', 'G:'] },
+    { index: 1, name: 'WDS480G2G0C', c: 40, idle: false, mounts: ['C:'] },
+  ],
+};
+
+test('toSnapshot attaches GPU temperatures by LUID and lists disk temperatures', () => {
+  const snap = toSnapshot([], ADAPTERS, TEMPS);
+  assert.deepEqual(
+    snap.gpu.map((g) => g.tempC),
+    [42.8, null],
+  );
+  assert.deepEqual(snap.diskTemps, [
+    { index: 0, name: 'ST2000DM008', tempC: 37, idle: true, mounts: ['D:', 'G:'] },
+    { index: 1, name: 'WDS480G2G0C', tempC: 40, idle: false, mounts: ['C:'] },
+  ]);
+});
+
+test('toSnapshot treats non-positive or non-numeric temperatures as unknown', () => {
+  const snap = toSnapshot([], ADAPTERS, {
+    gpu: { [NV]: 0, [IG]: 'hot' },
+    disks: [
+      { index: 2, name: 'X', c: -1 },
+      { index: 3, name: 'Y', c: 0 },
+    ],
+  });
+  assert.deepEqual(
+    snap.gpu.map((g) => g.tempC),
+    [null, null],
+  );
+  assert.deepEqual(snap.diskTemps, [
+    { index: 2, name: 'X', tempC: null, idle: false, mounts: [] },
+    { index: 3, name: 'Y', tempC: null, idle: false, mounts: [] },
+  ]);
+});
+
+test('toSnapshot gives an empty disk list when no drive reports a temperature', () => {
+  assert.deepEqual(toSnapshot([], [], { gpu: {}, disks: [] }).diskTemps, []);
 });
 
 test('toSnapshot matches counter paths case-insensitively', () => {
@@ -93,6 +140,9 @@ test('parser remembers adapters and ignores malformed lines', () => {
   const snap = parse(JSON.stringify({ samples: SAMPLES }));
   assert.equal(snap.gpu[0].name, 'NVIDIA GeForce RTX 3060');
   assert.equal(snap.gpu.length, 2);
+  const withTemps = parse(JSON.stringify({ samples: SAMPLES, temps: TEMPS }));
+  assert.equal(withTemps.gpu[0].tempC, 42.8);
+  assert.equal(withTemps.diskTemps.length, 2);
 });
 
 const { EventEmitter } = require('node:events');
@@ -210,5 +260,7 @@ if (process.platform === 'win32') {
     assert.equal(typeof snap.disk.active, 'number');
     assert.equal(typeof snap.net.rxSec, 'number');
     assert.equal(typeof snap.net.txSec, 'number');
+    assert.ok(Array.isArray(snap.diskTemps), 'disk temperatures listed');
+    for (const g of snap.gpu) assert.ok(g.tempC === null || g.tempC > 0);
   });
 }

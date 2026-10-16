@@ -47,6 +47,7 @@ function toGpu(g) {
     util: g.utilizationGpu ?? null,
     dedicated: g.memoryUsed == null ? null : { used: g.memoryUsed * MB, total: total == null ? null : total * MB },
     shared: null,
+    tempC: g.temperatureGpu ?? null,
   };
 }
 
